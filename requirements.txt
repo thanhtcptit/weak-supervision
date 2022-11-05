@@ -1,0 +1,13 @@
+mkl
+numpy
+scipy
+Cython
+boto3
+jsonnet
+overrides
+tqdm
+pathlib
+snorkel
+scikit-learn
+pandas
+nltk
