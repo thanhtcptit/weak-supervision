@@ -40,26 +40,30 @@ def make_keyword_lf(keywords, label):
 
 
 def select_dev_example(df, lfs=[], method="random"):
+    retry_count = 0
     while True:
         example = df.sample(n=1).iloc[0]
-        if method == "abs" and len(lfs) != 0:
-            has_label = False
-            for lf in lfs:
-                if lf(example) != -1:
-                    has_label = True
-                    break
-            if has_label:
-                continue
-        elif method == "dis" and len(lfs) != 0:
-            labels = []
-            for lf in lfs:
-                l = lf(example)
-                if l != -1:
-                    labels.append(l)
-            if len(labels) != 0:
-                conf = np.mean(labels)
-                if conf < 0.4 or conf > 0.7:
+        if len(lfs) and retry_count <= 5:
+            if method == "abs":
+                has_label = False
+                for lf in lfs:
+                    if lf(example) != -1:
+                        has_label = True
+                        break
+                if has_label:
+                    retry_count += 1
                     continue
+            elif method == "dis":
+                labels = []
+                for lf in lfs:
+                    l = lf(example)
+                    if l != -1:
+                        labels.append(l)
+                if len(labels) != 0:
+                    conf = np.mean(labels)
+                    if conf < 0.4 or conf > 0.7:
+                        retry_count += 1
+                        continue
 
         return example
 
