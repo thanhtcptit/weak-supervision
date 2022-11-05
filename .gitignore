@@ -93,4 +93,4 @@ target/
 /train_logs/*
 
 # exclude
-!/data/*/.gitkeep
+!**/.gitkeep

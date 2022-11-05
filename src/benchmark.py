@@ -30,4 +30,4 @@ def main(config_path, save_dir):
     save_dir = Path(save_dir)
     os.makedirs(save_dir, exist_ok=True)
     with open(save_dir / f"result_{get_current_time_str()}.txt", "w") as f:
-        f.write(f"Config: \n{config_dict}\nAVG Acc: {avg_acc:.4f}\n")
+        f.write(f"Config: \n{config_dict}\n{avg_acc:.4f}\n")
