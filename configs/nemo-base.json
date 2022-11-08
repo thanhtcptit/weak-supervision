@@ -7,6 +7,6 @@
     "num_iter": 50,
     "eval_iter_mod": 5,
     "alternative_draw": false,
-    "select_method": "dis", // ["random", "dis", "abs"]
+    "select_method": "seu",
     "primitive_threshold": 0.6
 }

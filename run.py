@@ -78,7 +78,7 @@ class Train(Subcommand):
             help="force override serialization dir")
         subparser.add_argument(
             "-v", "--verbose", action="store_true",
-            help="force override serialization dir")
+            help="show training log")
 
         subparser.set_defaults(func=train_model)
 

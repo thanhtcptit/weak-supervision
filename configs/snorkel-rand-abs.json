@@ -7,6 +7,6 @@
     "num_iter": 50,
     "eval_iter_mod": 5,
     "alternative_draw": false,
-    "select_method": "random",
+    "select_method": "random_abs",
     "primitive_threshold": 0.6
 }

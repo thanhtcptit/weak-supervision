@@ -6,9 +6,11 @@ import subprocess
 from hashlib import sha256
 
 
-def get_basename(path):
+def get_basename(path, remove_ext=False):
     if path[-1] == "/":
         path = path[:-1]
+    if remove_ext:
+        return os.path.splitext(os.path.basename(path))[0]
     return os.path.basename(path)
 
 
