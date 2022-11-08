@@ -23,7 +23,7 @@ from sklearn.linear_model import LogisticRegression
 
 from src.utils import Params, get_basename
 from src.utils.logger import Logger
-from src.data.utils import load_youtube_spam_dataset
+from src.data.utils import load_youtube_spam_dataset, load_imdb_review_dataset
 
 
 def keyword_lookup(x, keywords, label):
@@ -199,7 +199,8 @@ def train(config_path, save_dir=None, recover=False, force=False, verbose=False)
     
     if save_dir is not None:
         if save_dir == "":
-            save_dir = os.path.join("train_logs", get_basename(config_path, remove_ext=True))
+            save_dir = os.path.join("train_logs", config["dataset"],
+                                    get_basename(config_path, remove_ext=True))
         if os.path.exists(save_dir):
             if force:
                 shutil.rmtree(save_dir)
@@ -216,13 +217,13 @@ def train(config_path, save_dir=None, recover=False, force=False, verbose=False)
 
     if config["dataset"] == "ytb":
         df_train, df_val, df_test = load_youtube_spam_dataset(
-            Path(config["dataset_path"]) / "data", transform_unigrams=True)
-        label_list = list(set(df_train["label"]))
-    elif config["dataset"] == "imbd":
-        df_train, df_val, df_test = None, None, None
-        label_list = None
+            config["dataset_path"], transform_unigrams=True)
+    elif config["dataset"] == "imdb":
+        df_train, df_val, df_test = load_imdb_review_dataset(
+            config["dataset_path"], transform_unigrams=True)
     else:
         raise ValueError(config["dataset"])
+    label_list = list(set(df_train["label"]))
 
     logger.log(f"Train: {len(df_train)} - Val: {len(df_val)} - Test: {len(df_test)}")
 

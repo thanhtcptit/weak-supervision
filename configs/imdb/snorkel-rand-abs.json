@@ -1,8 +1,6 @@
 {
-    "num_trials": 50, // for benchmark
-
-    "dataset": "ytb", // ["ytb", "imdb"]
-    "dataset_path": "/home/s2210421/dataset/youtube_spam_cmt",
+    "dataset": "imdb",
+    "dataset_path": "/home/s2210421/dataset/aclImdb/train",
 
     "num_iter": 50,
     "eval_iter_mod": 5,

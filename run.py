@@ -122,6 +122,9 @@ class Benchmark(Subcommand):
         subparser.add_argument(
             "-s", "--save_dir", type=str, default="train_logs/bench",
             help="directory in which to save the model and its logs")
+        subparser.add_argument(
+            "-n", "--num_trials", type=int, default=50,
+            help="Num trials to run")
 
         subparser.set_defaults(func=benchmark_model)
 
@@ -130,7 +133,7 @@ class Benchmark(Subcommand):
 
 def benchmark_model(args):
     from src.benchmark import main as func
-    return func(args.config_path, args.save_dir)
+    return func(args.config_path, args.save_dir, args.num_trials)
 
 
 class HyperparamsSearch(Subcommand):

@@ -9,8 +9,11 @@ from collections import OrderedDict
 import numpy as np
 import pandas as pd
 
+from pathlib import Path
 from nltk import corpus
 from sklearn.model_selection import train_test_split
+
+from src.utils import load_txt
 
 
 SEED = 123
@@ -67,6 +70,31 @@ def load_youtube_spam_dataset(data_path, transform_unigrams=False):
         df_valid_test, test_size=195, random_state=SEED, stratify=df_valid_test.label
     )
 
+    return df_train, df_val, df_test
+
+
+def load_imdb_review_dataset(data_path, transform_unigrams=False):
+    data_path = Path(data_path)
+    pos_dir, neg_dir = data_path / "pos", data_path / "neg"
+
+    data = {"text": [], "label": []}
+    for d, l in zip([neg_dir, pos_dir], [0, 1]):
+        files = sorted(os.listdir(d))
+        for f in files:
+            text = " ".join(load_txt(d / f))
+            data["text"].append(text)
+            data["label"].append(l)
+
+    df = pd.DataFrame.from_dict(data)
+    if transform_unigrams:
+        df["text"] = df["text"].apply(generate_unigram)
+
+    df_train, df_val_test = train_test_split(
+        df, test_size=5000, random_state=SEED, stratify=df.label
+    )
+    df_val, df_test = train_test_split(
+        df_val_test, test_size=2500, random_state=SEED, stratify=df_val_test.label
+    )
     return df_train, df_val, df_test
 
 

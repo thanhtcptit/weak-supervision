@@ -10,10 +10,10 @@ from src.utils import Params
 from src.utils.common import get_current_time_str
 
 
-def main(config_path, save_dir):
+def main(config_path, save_dir, num_trials):
     config_dict = Params.from_file(config_path).as_dict()
     accs = []
-    for _ in tqdm(range(config_dict["num_trials"])):
+    for _ in tqdm(range(num_trials)):
         try:
             p = subprocess.run(f"python run.py eval {config_path}".split(), stdout=subprocess.PIPE)
             res = p.stdout.decode()

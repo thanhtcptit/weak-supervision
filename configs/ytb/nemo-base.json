@@ -1,12 +1,10 @@
 {
-    "num_trials": 50, // for benchmark
-
-    "dataset": "ytb", // ["ytb", "imdb"]
+    "dataset": "ytb",
     "dataset_path": "/home/s2210421/dataset/youtube_spam_cmt",
 
     "num_iter": 50,
     "eval_iter_mod": 5,
     "alternative_draw": false,
-    "select_method": "random",
+    "select_method": "seu",
     "primitive_threshold": 0.6
 }

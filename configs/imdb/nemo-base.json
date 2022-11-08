@@ -1,0 +1,10 @@
+{
+    "dataset": "imdb",
+    "dataset_path": "/home/s2210421/dataset/aclImdb/train",
+
+    "num_iter": 50,
+    "eval_iter_mod": 5,
+    "alternative_draw": false,
+    "select_method": "seu",
+    "primitive_threshold": 0.6
+}
