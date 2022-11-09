@@ -70,10 +70,9 @@ def seu(df, lfs, prim_examples, selected_prim, label_list):
     best_ex_score = 0
     best_ex_ind = -1
     for i, row in df.reset_index(drop=True).iterrows():
-        ex_score = 0
         words = list(set(row["text"].split()))
 
-        cand_prims = [w for w in words if w not in selected_prim]
+        cand_prims = [w for w in words if w in prim_examples and w not in selected_prim]
         if len(cand_prims) == 0:
             continue
         for l in label_list:
@@ -81,10 +80,10 @@ def seu(df, lfs, prim_examples, selected_prim, label_list):
             agg = np.sum(acc)
             p = 0 if agg == 0 else acc / agg
             util_score = np.array([cand_lfs_util_score[(w, l)] for w in cand_prims])
-            ex_score += np.sum(p * util_score)
-        if ex_score > best_ex_score:
-            best_ex_score = ex_score
-            best_ex_ind = i
+            ex_score = np.sum(p * util_score)
+            if ex_score > best_ex_score:
+                best_ex_score = ex_score
+                best_ex_ind = i
 
     assert best_ex_ind != -1
 
@@ -123,31 +122,30 @@ def select_dev_example(df, lfs, method, prim_examples, selected_prim, label_list
         return example
 
 
-def select_primitive(example, selected_prim, prim_probs, prim_thresh, use_weight_probs=False):
+def select_primitive(example, selected_prim, prim_probs, use_weight_probs=False):
     words = example.text.lower().split()
     cands, cands_w = [], []
     for w in words:
         if w not in prim_probs or w in selected_prim:
             continue
 
-        if (example.label == 0 and prim_probs[w] <= 1 - prim_thresh) or \
-           (example.label == 1 and prim_probs[w] >= prim_thresh):
-            cands.append(w)
-            if example.label == 1:
-                cands_w.append(prim_probs[w])
-            else:
-                cands_w.append(1 - prim_probs[w])
+        cands.append(w)
+        if example.label == 1:
+            cands_w.append(prim_probs[w])
+        else:
+            cands_w.append(1 - prim_probs[w])
     if len(cands) == 0:
         return None
-    cands_prob = np.exp(cands_w) / np.sum(np.exp(cands_w), axis=0)
+
     if use_weight_probs:
+        cands_prob = np.exp(cands_w) / np.sum(np.exp(cands_w), axis=0)
         prim = np.random.choice(cands, size=1, p=cands_prob)[0]
     else:
         prim = np.random.choice(cands, size=1)[0]
     return prim
 
 
-def build_primitive_lf(df, lfs, select_method, selected_prim, prim_probs, prim_thres,
+def build_primitive_lf(df, lfs, select_method, selected_prim, prim_probs,
                        prim_examples, label_list, use_weight_probs=False):
     prim, example = None, None
     retry_count = 0
@@ -162,7 +160,7 @@ def build_primitive_lf(df, lfs, select_method, selected_prim, prim_probs, prim_t
             continue
 
         last_example = example
-        prim = select_primitive(example, selected_prim, prim_probs, prim_thres, use_weight_probs)
+        prim = select_primitive(example, selected_prim, prim_probs, use_weight_probs)
         retry_count += 1
     return make_keyword_lf(keywords=[prim], label=example.label), (prim, example.label)
 
@@ -230,7 +228,8 @@ def train(config_path, save_dir=None, recover=False, force=False, verbose=False)
     df_train_spam = df_train[df_train.label == 1]
     df_train_ham = df_train[df_train.label == 0]
 
-    primitive_examples, primitive_labels = collections.defaultdict(list), collections.defaultdict(list)
+    primitive_examples, primitive_labels = collections.defaultdict(list), \
+        collections.defaultdict(list)
     for i, row in df_train.iterrows():
         words = list(set(row["text"].split()))
         for w in words:
@@ -239,8 +238,12 @@ def train(config_path, save_dir=None, recover=False, force=False, verbose=False)
 
     primitive_probs = {}
     for w in primitive_labels.keys():
+        freq = sum(primitive_labels[w]) / len(primitive_labels[w])
+        if freq > (1 - config["primitive_threshold"]) and freq < config["primitive_threshold"]:
+            continue
         primitive_examples[w] = list(set(primitive_examples[w]))
-        primitive_probs[w] = sum(primitive_labels[w]) / len(primitive_labels[w])
+        primitive_probs[w] = freq
+    logger.log(f"Num primitives: {len(primitive_probs)}")
 
     avg_acc = []
     best_em_acc = 0
@@ -261,7 +264,7 @@ def train(config_path, save_dir=None, recover=False, force=False, verbose=False)
                 else:
                     segment_df = df_train
                 lf, prim = build_primitive_lf(segment_df, lfs, "random", selected_prim, primitive_probs,
-                                              config["primitive_threshold"], primitive_examples, label_list, use_weight_probs)
+                                              primitive_examples, label_list, use_weight_probs)
                 lfs.append(lf)
                 selected_prim[prim[0]] = prim[1]
         else:
@@ -271,7 +274,7 @@ def train(config_path, save_dir=None, recover=False, force=False, verbose=False)
             else:
                 segment_df = df_train
             lf, prim = build_primitive_lf(segment_df, lfs, config["select_method"], selected_prim, primitive_probs,
-                                          config["primitive_threshold"], primitive_examples, label_list, use_weight_probs)
+                                          primitive_examples, label_list, use_weight_probs)
             lfs.append(lf)
             selected_prim[prim[0]] = prim[1]
 

@@ -95,7 +95,7 @@ def load_imdb_review_dataset(data_path, transform_unigrams=False):
     df_val, df_test = train_test_split(
         df_val_test, test_size=2500, random_state=SEED, stratify=df_val_test.label
     )
-    return df_train, df_val, df_test
+    return df_train.reset_index(drop=True), df_val, df_test
 
 
 def preview_tfs(df, tfs):

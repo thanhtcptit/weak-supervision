@@ -1,0 +1,1 @@
+qsub -M thanhtc@jaist.ac.jp -m be $1

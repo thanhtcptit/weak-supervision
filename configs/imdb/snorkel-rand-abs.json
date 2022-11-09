@@ -6,5 +6,5 @@
     "eval_iter_mod": 5,
     "alternative_draw": false,
     "select_method": "random_abs",
-    "primitive_threshold": 0.6
+    "primitive_threshold": 0.7
 }
