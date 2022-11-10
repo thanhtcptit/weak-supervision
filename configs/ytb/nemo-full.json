@@ -1,0 +1,13 @@
+{
+    "dataset": "ytb",
+    "dataset_path": "/home/s2210421/dataset/youtube_spam_cmt/data",
+
+    "num_iter": 50,
+    "eval_iter_mod": 5,
+    "alternative_draw": false,
+    "select_method": "seu",
+    "primitive_threshold": 0.6,
+    "contextual_learning": {
+        "percentile": 0.95
+    }
+}

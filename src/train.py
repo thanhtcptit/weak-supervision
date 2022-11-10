@@ -87,14 +87,15 @@ def seu(df, lfs, prim_examples, selected_prim, label_list):
 
     assert best_ex_ind != -1
 
-    return df.iloc[best_ex_ind]
+    return df.iloc[best_ex_ind], best_ex_ind
 
 
 def select_dev_example(df, lfs, method, prim_examples, selected_prim, label_list):
     retry_count = 0
     while True:
         if method.startswith("random"):
-            example = df.sample(n=1).iloc[0]
+            index = np.random.randint(len(df))
+            example = df.iloc[index]
             if len(lfs) and retry_count <= 5:
                 if method == "random_abs":
                     has_label = False
@@ -117,9 +118,9 @@ def select_dev_example(df, lfs, method, prim_examples, selected_prim, label_list
                             retry_count += 1
                             continue
         elif method == "seu":
-            example = seu(df, lfs, prim_examples, selected_prim, label_list)
+            example, index = seu(df, lfs, prim_examples, selected_prim, label_list)
 
-        return example
+        return example, index
 
 
 def select_primitive(example, selected_prim, prim_probs, use_weight_probs=False):
@@ -153,7 +154,7 @@ def build_primitive_lf(df, lfs, select_method, selected_prim, prim_probs,
     while prim is None:
         if retry_count > 5:
             select_method = "random"
-        example = select_dev_example(df, lfs, select_method, prim_examples, selected_prim,
+        example, index = select_dev_example(df, lfs, select_method, prim_examples, selected_prim,
                                      label_list)
         if last_example is not None and last_example.equals(example):
             select_method = "random"
@@ -162,13 +163,24 @@ def build_primitive_lf(df, lfs, select_method, selected_prim, prim_probs,
         last_example = example
         prim = select_primitive(example, selected_prim, prim_probs, use_weight_probs)
         retry_count += 1
-    return make_keyword_lf(keywords=[prim], label=example.label), (prim, example.label)
+    return make_keyword_lf(keywords=[prim], label=example.label), (prim, index, example.label), retry_count
 
 
-def eval_lm_em(df_train, df_test, lfs, ):
+def filter_L(L, selected_prim, deactive_examples):
+    for i, (_, v) in enumerate(selected_prim.items()):
+        noisy_ex = deactive_examples[v[0]]
+        if len(noisy_ex) != 0:
+            L[noisy_ex, [i] * len(noisy_ex)] = -1
+    return L
+
+
+def eval_lm_em(df_train, df_test, lfs, selected_prim, contextual_learning=False,
+               deactive_examples=None):
     applier = PandasLFApplier(lfs=lfs)
     L_train = applier.apply(df=df_train, progress_bar=False)
     L_test = applier.apply(df=df_test, progress_bar=False)
+    if contextual_learning:
+        L_train = filter_L(L_train, selected_prim, deactive_examples)
 
     label_model = LabelModel(cardinality=2, verbose=False)
     label_model.fit(L_train=L_train, n_epochs=500, progress_bar=False)
@@ -225,8 +237,8 @@ def train(config_path, save_dir=None, recover=False, force=False, verbose=False)
 
     logger.log(f"Train: {len(df_train)} - Val: {len(df_val)} - Test: {len(df_test)}")
 
-    df_train_spam = df_train[df_train.label == 1]
-    df_train_ham = df_train[df_train.label == 0]
+    df_train_pos = df_train[df_train.label == 1]
+    df_train_neg = df_train[df_train.label == 0]
 
     primitive_examples, primitive_labels = collections.defaultdict(list), \
         collections.defaultdict(list)
@@ -245,9 +257,24 @@ def train(config_path, save_dir=None, recover=False, force=False, verbose=False)
         primitive_probs[w] = freq
     logger.log(f"Num primitives: {len(primitive_probs)}")
 
+    if "contextual_learning" in config:
+        contextual_learning = True
+        percentile = config["contextual_learning"]["percentile"]
+
+        vectorizer = TfidfVectorizer()
+        X = vectorizer.fit_transform(df_train.text.tolist()).toarray()
+        X_norm = X / (np.linalg.norm(X, axis=-1) + 1e-5)[:, np.newaxis]
+        dist = 1 - X_norm @ X_norm.T
+        r = np.percentile(dist, percentile, axis=-1)
+        deactive_examples = {i: [j for j in range(len(df_train)) if dist[i, j] > r[i]]
+                             for i in range(len(df_train))}
+    else:
+        contextual_learning = False
+        deactive_examples = None
+
     avg_acc = []
-    best_em_acc = 0
-    best_lfs, best_lm, best_em = None, None, None
+    lm_acc, em_acc, best_em_acc = 0, 0, 0
+    best_lfs, best_prim, best_lm, best_em = None, None, None, None
 
     lfs, selected_prim = [], {}
     use_weight_probs = False
@@ -255,43 +282,55 @@ def train(config_path, save_dir=None, recover=False, force=False, verbose=False)
     segment_df = None
     segment_flag = False
 
-    for iter in tqdm(range(1, config["num_iter"] + 1)):
+    pbar = tqdm(range(1, config["num_iter"] + 1))
+    for iter in pbar:
         if iter == 1:
             for _ in range(3):
                 if config["alternative_draw"]:
-                    segment_df = df_train_spam if segment_flag else df_train_ham
+                    segment_df = df_train_pos if segment_flag else df_train_neg
                     segment_flag = not segment_flag
                 else:
                     segment_df = df_train
-                lf, prim = build_primitive_lf(segment_df, lfs, "random", selected_prim, primitive_probs,
-                                              primitive_examples, label_list, use_weight_probs)
+                lf, prim, retry = build_primitive_lf(
+                    segment_df, lfs, "random", selected_prim, primitive_probs,
+                    primitive_examples, label_list, use_weight_probs)
                 lfs.append(lf)
-                selected_prim[prim[0]] = prim[1]
+                selected_prim[prim[0]] = (prim[1], prim[2])
         else:
             if config["alternative_draw"]:
-                segment_df = df_train_spam if segment_flag else df_train_ham
+                segment_df = df_train_pos if segment_flag else df_train_neg
                 segment_flag = not segment_flag
             else:
                 segment_df = df_train
-            lf, prim = build_primitive_lf(segment_df, lfs, config["select_method"], selected_prim, primitive_probs,
-                                          primitive_examples, label_list, use_weight_probs)
+            lf, prim, retry = build_primitive_lf(
+                segment_df, lfs, config["select_method"], selected_prim, primitive_probs,
+                primitive_examples, label_list, use_weight_probs)
             lfs.append(lf)
-            selected_prim[prim[0]] = prim[1]
+            selected_prim[prim[0]] = (prim[1], prim[2])
 
         if iter % config["eval_iter_mod"] == 0:
             try:
-                lm_acc, em_acc, lm, em, _ = eval_lm_em(df_train, df_val, lfs)
+                lm_acc, em_acc, lm, em, _ = eval_lm_em(
+                    df_train, df_val, lfs, selected_prim, contextual_learning,
+                    deactive_examples)
                 logger.log(f"Iter {iter} - LM Acc: {lm_acc} - EM Acc: {em_acc}\n")
-            except ValueError:
+            except Exception as e:
+                logger.log(e)
                 em_acc = 0
+                continue
+
             if em_acc > best_em_acc:
                 best_em_acc = em_acc
                 best_lfs = copy.deepcopy(lfs)
+                best_prim = copy.deepcopy(selected_prim)
                 best_lm = lm
                 best_em = em
             avg_acc.append(em_acc)
+        pbar.set_postfix({"prim": prim[0], "retry": retry, "lm_acc": lm_acc, "em_acc": em_acc})
 
-    final_lm_acc, final_em_acc, _, _, lf_analysis = eval_lm_em(df_train, df_test, best_lfs)
+    final_lm_acc, final_em_acc, _, _, lf_analysis = eval_lm_em(
+        df_train, df_test, best_lfs, best_prim, contextual_learning,
+        deactive_examples)
     logger.log(f"[Test set]\nLM Acc: {final_lm_acc}\nEM Acc: {final_em_acc}\n{lf_analysis.lf_summary()}")
 
     if save_dir:
