@@ -6,5 +6,5 @@
     "eval_iter_mod": 5,
     "alternative_draw": false,
     "select_method": "seu",
-    "primitive_threshold": 0.7
+    "primitive_threshold": 0.5
 }
